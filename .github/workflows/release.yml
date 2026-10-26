@@ -1,0 +1,62 @@
+name: release
+
+on:
+  push:
+    tags: ['[0-9]+.[0-9]+.[0-9]+-[0-9]+']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: version
+        run: |
+          DIR="$(echo "${GITHUB_REF_NAME}" | cut -d. -f1-2)"
+          if [ ! -d "./${DIR}" ]; then
+            echo "No build directory ./${DIR} for tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "DIR=${DIR}" >> "$GITHUB_ENV"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea
+      - name: login
+        run: printf '%s' "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - name: build
+        run: docker buildx build --platform "linux/${ARCH}" -t "convox/ingress-nginx:${GITHUB_REF_NAME}-${ARCH}" --push --pull "./${DIR}"
+
+  create-manifest:
+    needs: [build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: login
+        run: printf '%s' "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - name: create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            -t "convox/ingress-nginx:${GITHUB_REF_NAME}" \
+            "convox/ingress-nginx:${GITHUB_REF_NAME}-amd64" \
+            "convox/ingress-nginx:${GITHUB_REF_NAME}-arm64"
