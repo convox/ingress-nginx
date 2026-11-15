@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '0 12 1 * *'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag to scan, a version tag or a commit sha. Empty scans the newest version tag
+        required: false
 
 permissions: {}
 
@@ -11,12 +15,29 @@ jobs:
   trivy:
     runs-on: ubuntu-24.04
     steps:
-      - name: newest tag
+      - name: tag
         run: |
-          TAG="$(git ls-remote --tags --refs "https://github.com/${GITHUB_REPOSITORY}.git" | awk -F/ '{print $3}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$' | sort -V | tail -1)"
+          TAG="${INPUT_TAG}"
+          if [ -z "${TAG}" ]; then
+            TAG="$(git ls-remote --tags --refs "https://github.com/${GITHUB_REPOSITORY}.git" | awk -F/ '{print $3}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$' | sort -V | tail -1)"
+          fi
+          case "${TAG}" in
+            *[!A-Za-z0-9._-]*) echo "invalid tag" >&2; exit 1 ;;
+          esac
           echo "TAG=${TAG}" >> "$GITHUB_ENV"
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
       - name: trivy
         run: |
           for arch in amd64 arm64; do
             docker run --rm aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c image --scanners vuln --severity HIGH,CRITICAL --format table --platform "linux/${arch}" "convox/ingress-nginx:${TAG}"
           done
+      - name: nginx patches in the fork that are not in 1.15/nginx/patches
+        run: |
+          set -o pipefail
+          names() {
+            git init --quiet "$2" && git -C "$2" fetch --quiet --depth 1 "$1" "$4" && git -C "$2" ls-tree --name-only "FETCH_HEAD:$3" | sort
+          }
+          names https://github.com/chainguard-forks/ingress-nginx fork images/nginx/rootfs/patches HEAD > fork.txt || echo "could not list the fork's patches"
+          names "https://github.com/${GITHUB_REPOSITORY}.git" here 1.15/nginx/patches "${GITHUB_SHA}" > here.txt || echo "could not list 1.15/nginx/patches"
+          comm -23 fork.txt here.txt

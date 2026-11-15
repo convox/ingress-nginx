@@ -1,0 +1,27 @@
+The nginx build in nginx/ comes from
+https://github.com/chainguard-forks/ingress-nginx (images/nginx/rootfs)
+at commit 045b49c67408fc79cc031497118e0f843a83f0a1, which continues the build of
+https://github.com/kubernetes/ingress-nginx. The final stage of Dockerfile is
+adapted from images/nginx/rootfs/Dockerfile at that commit and from
+rootfs/Dockerfile of kubernetes/ingress-nginx controller-v1.15.1.
+Copyright The Kubernetes Authors. Licensed under the Apache License,
+Version 2.0, see LICENSE.
+
+nginx/patches/ is unchanged. Patches 00 to 34 are the ones
+kubernetes/ingress-nginx shipped. Patches 35 to 50 are backports of nginx/nginx
+commits and each file names its CVE and commit. Two of them name a commit of
+nginx/nginx pull request 1474 that is on no branch. The same changes were
+merged as:
+
+  38_nginx-1.27.1-CVE-2026-42055.patch  26d824ec3a2f819300edce0ab3b055751c9843ff
+  39_nginx-1.27.1-CVE-2026-48142.patch  319a0bff157b15d9061f4712b2edbe6fdd2dee66
+
+nginx/build.sh is changed in four places:
+
+  1. The OpenTelemetry module is compiled against the patched nginx tree. The
+     original downloaded stock nginx over plain HTTP for that step, and
+     patch 37 changes the layout of ngx_http_request_t.
+  2. nlohmann/json, which opentelemetry-cpp clones during its build, is pinned
+     to the commit of v3.11.3.
+  3. ModSecurity v3.0.14 is checked against its commit after checkout.
+  4. OWASP CRS v4.22.0 is checked against its commit after clone.
