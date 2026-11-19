@@ -1,6 +1,6 @@
 The nginx build in nginx/ comes from
 https://github.com/chainguard-forks/ingress-nginx (images/nginx/rootfs)
-at commit 045b49c67408fc79cc031497118e0f843a83f0a1, which continues the build of
+at commit 29e7c87140a9d88ffd3cf26ff07852bb81dc0a4a, which continues the build of
 https://github.com/kubernetes/ingress-nginx. The final stage of Dockerfile is
 adapted from images/nginx/rootfs/Dockerfile at that commit and from
 rootfs/Dockerfile of kubernetes/ingress-nginx controller-v1.15.1.
@@ -8,7 +8,7 @@ Copyright The Kubernetes Authors. Licensed under the Apache License,
 Version 2.0, see LICENSE.
 
 nginx/patches/ is unchanged. Patches 00 to 34 are the ones
-kubernetes/ingress-nginx shipped. Patches 35 to 50 are backports of nginx/nginx
+kubernetes/ingress-nginx shipped. Patches 35 to 58 are backports of nginx/nginx
 commits and each file names its CVE and commit. Two of them name a commit of
 nginx/nginx pull request 1474 that is on no branch. The same changes were
 merged as:
